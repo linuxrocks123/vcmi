@@ -1276,7 +1276,7 @@ bool VCAI::canRecruitAnyHero (const CGTownInstance * t) const
 	//TODO: make gathering gold, building tavern or conquering town (?) possible subgoals
 	if (!t)
 		t = findTownWithTavern();
-	if (t)
+	if (t && !t->visitingHero)
 		return cb->getResourceAmount(Res::GOLD) >= HERO_GOLD_COST &&
 			cb->getHeroesInfo().size() < ALLOWED_ROAMING_HEROES &&
 			cb->getAvailableHeroes(t).size();
@@ -1676,7 +1676,7 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h, bool objIsDefense)
     if(!objIsDefense)
         for(auto t : Goals::defended_towns)
             if(h->visitablePos() == t->visitablePos())
-                return false;
+                throw cannotFulfillGoalException("Defending town; can't move from it!");
 
     //If we're garrisoned, move us out of the garrison
     if(h->inTownGarrison)
@@ -2136,6 +2136,18 @@ Goals::TSubgoal VCAI::striveToGoalInternal(Goals::TSubgoal ultimateGoal, bool on
 				throw (e);
 			}
 
+            std::cout << "In striveToGoalInternal:\n";
+            std::cout << "Goal: " << goal->goalType << std::endl;
+            std::cout << "Heroes:\n";
+            for(const CGHeroInstance* hero : cb->getHeroesInfo())
+                 std::cout << hero->name << ": " << hero->inTownGarrison << std::endl;
+            std::cout << "Goal-Hero: " << (goal->hero ? goal->hero->name : "NONE") << std::endl;
+
+
+            auto heroes_info = cb->getHeroesInfo();
+            if(goal->hero && !count(heroes_info.begin(),heroes_info.end(),goal->hero.get()))
+                 throw cannotFulfillGoalException("Hero doesn't exist on map.");
+
 			if (goal->hero) //lock this hero to fulfill ultimate goal
 			{
 				if (maxGoals)
@@ -2533,7 +2545,7 @@ void VCAI::recruitHero(const CGTownInstance * t, bool throwing)
 	logAi->debugStream() << boost::format("Trying to recruit a hero in %s at %s") % t->name % t->visitablePos();
 
 	auto heroes = cb->getAvailableHeroes(t);
-	if(heroes.size())
+	if(heroes.size() && cb->getResourceAmount(Res::GOLD) >= HERO_GOLD_COST)
 	{
 		auto hero = heroes[0];
 		if (heroes.size() >= 2) //makes sense to recruit two heroes with starting amries in first week
