@@ -30,6 +30,7 @@ namespace Goals
 {
 	INVALID = -1,
 	WIN, DO_NOT_LOSE, CONQUER, BUILD, //build needs to get a real reasoning
+    DEFEND_TOWN,
 	EXPLORE, GATHER_ARMY, BOOST_HERO,
 	RECRUIT_HERO,
 	BUILD_STRUCTURE, //if hero set, then in visited town
@@ -242,6 +243,14 @@ class RecruitHero : public CGoal<RecruitHero>
 	TGoalVec getAllPossibleSubgoals() override {return TGoalVec();};
 	TSubgoal whatToDoToAchieve() override;
 };
+class DefendTown : public CGoal<DefendTown>
+{
+    public:
+    DefendTown() : CGoal(Goals::DEFEND_TOWN){};
+    DefendTown(const CGTownInstance* tid) : CGoal (Goals::DEFEND_TOWN){priority=1; town=tid;};
+    TGoalVec getAllPossibleSubgoals() override {return TGoalVec();};
+	TSubgoal whatToDoToAchieve() override;
+};     
 class BuildThis : public CGoal<BuildThis>
 {
 public:
@@ -359,5 +368,9 @@ class CIssueCommand : public CGoal<CIssueCommand>
 	TGoalVec getAllPossibleSubgoals() override {return TGoalVec();};
 	//TSubgoal whatToDoToAchieve() override {return sptr(Invalid());};
 };
+
+#include <unordered_set>
+
+extern std::unordered_set<const CGTownInstance*> defended_towns;
 
 }

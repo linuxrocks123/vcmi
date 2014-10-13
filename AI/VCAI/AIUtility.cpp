@@ -281,7 +281,7 @@ ui64 evaluateDanger(const CGObjectInstance *obj)
 		{
 			InfoAboutTown iat;
 			cb->getTownInfo(obj, iat);
-			return iat.army.getStrength();
+			return cb->getTownsInfo().size() ? iat.army.getStrength() : 0;
 		}
 	case Obj::MONSTER:
 		{

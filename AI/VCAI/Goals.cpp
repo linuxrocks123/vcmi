@@ -113,6 +113,7 @@ bool Goals::AbstractGoal::operator== (AbstractGoal &g)
 		//no parameters
 		case INVALID:
 		case WIN:
+        case DEFEND_TOWN:
 		case DO_NOT_LOSE:
 		case RECRUIT_HERO: //recruit any hero, as yet
 			return true;
@@ -182,9 +183,11 @@ namespace Goals
 
 //TSubgoal AbstractGoal::whatToDoToAchieve()
 //{
-//    logAi->debugStream() << boost::format("Decomposing goal of type %s") % name();
-//        return sptr (Goals::Explore());
+//	  logAi->debugStream() << boost::format("Decomposing goal of type %s") % name();
+//		  return sptr (Goals::Explore());
 //}
+
+std::unordered_set<const CGTownInstance*> Goals::defended_towns;
 
 TSubgoal Win::whatToDoToAchieve()
 {
@@ -200,6 +203,56 @@ TSubgoal Win::whatToDoToAchieve()
 
 	std::vector<EventCondition> goals;
 
+#if 0    
+    //Gather army in a town if we're about to lose it.
+	for (const TriggeredEvent & event : cb->getMapHeader()->triggeredEvents)
+		if (event.effect.type == EventEffect::DEFEAT)
+			boost::range::copy(event.trigger.getFulfillmentCandidates(toBool), std::back_inserter(goals));
+
+    for(const EventCondition& goal : goals)
+        if(goal.condition==EventCondition::CONTROL && goal.objectType == Obj::TOWN && goal.object && goal.object->getOwner()==ai->playerID)
+            return sptr(Goals::DefendTown(static_cast<const CGTownInstance*>(goal.object)));
+#endif
+
+    goals.clear();
+
+    for(const CGHeroInstance* hero : cb->getHeroesInfo(false))
+        if(cb->getPlayerRelations(ai->playerID, hero->getOwner())==PlayerRelations::ENEMIES)
+            for(const CGTownInstance* town : cb->getTownsInfo())
+            {
+                if(defended_towns.count(town))
+                    continue;
+
+#if 0
+                //Okay, there are actually no functions that let me do what I want here.
+                //For some reason you can't calculate paths for enemy heroes even though
+                //you can see them.  So, this is a conservative estimate for now.
+                int3 townpos = town->pos;
+                int3 enemypos = hero->pos;
+
+                //If he's not on the right plane (subterranean versus above-ground),
+                //assume he can't reach us
+                if(townpos.z != enemypos.z)
+                    continue;
+
+                int tiles = hero->maxMovePoints(true)/50; //Best road movement cost.
+                int cost = (int)(townpos.dist2d(enemypos));
+
+                if(tiles >= cost) {}
+#endif
+                CPathsInfo out(cb->getMapSize());
+                CGPath path;
+                cb->calculatePaths(hero,out);
+                out.getPath(town->visitablePos(),path);
+                if(path.nodes.size() && path.nodes[0].turns<2)
+                {
+                    std::cout << "DEFENDING TOWN\n";
+                    ai->reset_gold_reserve();
+                    defended_towns.insert(town);
+                    return sptr(Goals::DefendTown(town));
+                }
+            }
+
 	for (const TriggeredEvent & event : cb->getMapHeader()->triggeredEvents)
 	{
 		//TODO: try to eliminate human player(s) using loss conditions that have isHuman element
@@ -210,18 +263,19 @@ TSubgoal Win::whatToDoToAchieve()
 		}
 	}
 
-	//TODO: instead of returning first encountered goal AI should generate list of possible subgoals
+	std::vector<TSubgoal> subgoals;
 	for (const EventCondition & goal : goals)
 	{
 		switch(goal.condition)
 		{
 		case EventCondition::HAVE_ARTIFACT:
-			return sptr (Goals::GetArtOfType(goal.objectType));
+			subgoals.push_back(sptr (Goals::GetArtOfType(goal.objectType)));
+			break;
 		case EventCondition::DESTROY:
 			{
 				if (goal.object)
 				{
-					return sptr (Goals::GetObj(goal.object->id.getNum()));
+					subgoals.push_back(sptr (Goals::GetObj(goal.object->id.getNum())));
 				}
 				else
 				{
@@ -230,6 +284,7 @@ TSubgoal Win::whatToDoToAchieve()
 					break;
 				}
 			}
+			break;
 		case EventCondition::HAVE_BUILDING:
 			{
 			// TODO build other buildings apart from Grail
@@ -245,7 +300,7 @@ TSubgoal Win::whatToDoToAchieve()
 						if(h->visitedTown && !vstd::contains(h->visitedTown->forbiddenBuildings, BuildingID::GRAIL))
 						{
 							const CGTownInstance *t = h->visitedTown;
-							return sptr (Goals::BuildThis(BuildingID::GRAIL, t));
+							subgoals.push_back( sptr (Goals::BuildThis(BuildingID::GRAIL, t)));
 						}
 						else
 						{
@@ -259,7 +314,7 @@ TSubgoal Win::whatToDoToAchieve()
 							boost::sort(towns, CDistanceSorter(h.get()));
 							if(towns.size())
 							{
-								return sptr (Goals::VisitTile(towns.front()->visitablePos()).sethero(h));
+								subgoals.push_back(sptr (Goals::VisitTile(towns.front()->visitablePos()).sethero(h)));
 							}
 						}
 					}
@@ -272,12 +327,12 @@ TSubgoal Win::whatToDoToAchieve()
 					int3 grailPos = cb->getGrailPos(ratio);
 					if(ratio > 0.99)
 					{
-						return sptr (Goals::DigAtTile(grailPos));
+						subgoals.push_back(sptr (Goals::DigAtTile(grailPos)));
 					} //TODO: use FIND_OBJ
 					else if(const CGObjectInstance * obj = ai->getUnvisitedObj(objWithID<Obj::OBELISK>)) //there are unvisited Obelisks
-						return sptr (Goals::GetObj(obj->id.getNum()));
+						subgoals.push_back(sptr (Goals::GetObj(obj->id.getNum())));
 					else
-						return sptr (Goals::Explore());
+						subgoals.push_back(sptr (Goals::Explore()));
 				}
 				break;
 			}
@@ -285,7 +340,7 @@ TSubgoal Win::whatToDoToAchieve()
 			{
 				if (goal.object)
 				{
-					return sptr (Goals::GetObj(goal.object->id.getNum()));
+					subgoals.push_back(sptr (Goals::GetObj(goal.object->id.getNum())));
 				}
 				else
 				{
@@ -294,13 +349,16 @@ TSubgoal Win::whatToDoToAchieve()
 					break;
 				}
 			}
+            break;
 
 		case EventCondition::HAVE_RESOURCES:
 			//TODO mines? piles? marketplace?
 			//save?
-			return sptr (Goals::CollectRes(static_cast<Res::ERes>(goal.objectType), goal.value));
+			subgoals.push_back(sptr (Goals::CollectRes(static_cast<Res::ERes>(goal.objectType), goal.value)));
+            break;
 		case EventCondition::HAVE_CREATURES:
-			return sptr (Goals::GatherTroops(goal.objectType, goal.value));
+			subgoals.push_back( sptr (Goals::GatherTroops(goal.objectType, goal.value)));
+            break;
 		case EventCondition::TRANSPORT:
 			{
 				//TODO. merge with bring Grail to town? So AI will first dig grail, then transport it using this goal and builds it
@@ -310,7 +368,8 @@ TSubgoal Win::whatToDoToAchieve()
 				break;
 			}
 		case EventCondition::STANDARD_WIN:
-			return sptr (Goals::Conquer());
+			subgoals.push_back(sptr (Goals::Conquer()));
+            break;
 
 		// Conditions that likely don't need any implementation
 		case EventCondition::DAYS_PASSED:
@@ -325,7 +384,14 @@ TSubgoal Win::whatToDoToAchieve()
 			assert(0);
 		}
 	}
-	return sptr (Goals::Invalid());
+    if(subgoals.empty())
+        return sptr (Goals::Invalid());
+
+    for(int i=0; i<subgoals.size(); i++)
+        if(subgoals[i]->goalType==GATHER_TROOPS)
+            return subgoals[i];
+
+    return subgoals[0];
 }
 
 TSubgoal FindObj::whatToDoToAchieve()
@@ -647,14 +713,41 @@ bool Explore::fulfillsMe (TSubgoal goal)
 
 TSubgoal RecruitHero::whatToDoToAchieve()
 {
-	const CGTownInstance *t = ai->findTownWithTavern();
+	const CGTownInstance *t = town ? town : ai->findTownWithTavern();
 	if(!t)
 		return sptr (Goals::BuildThis(BuildingID::TAVERN));
 
-	if(cb->getResourceAmount(Res::GOLD) < HERO_GOLD_COST)
+	if(cb->getResourceAmount(Res::GOLD) - ai->get_gold_reserve() < HERO_GOLD_COST)
 		return sptr (Goals::CollectRes(Res::GOLD, HERO_GOLD_COST));
 
 	return iAmElementar();
+}
+
+TSubgoal DefendTown::whatToDoToAchieve()
+{
+    std::vector<const CGHeroInstance *> heroes;
+
+#if 0
+    if(hero)
+        heroes.push_back(hero.h);
+    else
+        heroes = cb->getHeroesInfo();
+
+    if(ai->canRecruitAnyHero())
+    {
+        if(!town->builtBuildings.count(BuildingID::TAVERN))
+        {
+            TSubgoal x = sptr (Goals::BuildThis(BuildingID::TAVERN));
+            x->town = town;
+            return x;
+        }
+        TSubgoal x = sptr(Goals::RecruitHero());
+        x->town = town;
+        return x;
+    }
+#endif
+
+    return iAmElementar();
 }
 
 std::string VisitTile::completeMessage() const
@@ -990,7 +1083,8 @@ TGoalVec GatherArmy::getAllPossibleSubgoals()
 	erase_if(otherHeroes, [heroDummy](const CGHeroInstance * h)
 	{
 		return (h == heroDummy.h || !ai->isAccessibleForHero(heroDummy->visitablePos(), h, true)
-			|| !ai->canGetArmy(heroDummy.h, h) || ai->getGoal(h)->goalType == Goals::GATHER_ARMY);
+			|| !ai->canGetArmy(heroDummy.h, h) || ai->getGoal(h)->goalType == Goals::GATHER_ARMY
+            || ai->getGoal(h)->goalType == Goals::DEFEND_TOWN);
 	});
 	for (auto h : otherHeroes)
 	{

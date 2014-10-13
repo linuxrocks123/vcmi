@@ -328,8 +328,17 @@ static void addStackToArmy(IObjectInfo::CArmyStructure & army, const CCreature *
 		army.walkersStrength += crea->fightValue * amount;
 }
 
+float CBankInfo::expectedCombatValue() const
+{
+     float to_return = 0.0f;
+     for(auto entry : config)
+          to_return+=entry["chance"].Float()*entry["combat_value"].Float();
+     return to_return;
+}
+
 IObjectInfo::CArmyStructure CBankInfo::minGuards() const
 {
+    assert(false);
 	std::vector<IObjectInfo::CArmyStructure> armies;
 	for (auto configEntry : config)
 	{
@@ -351,6 +360,7 @@ IObjectInfo::CArmyStructure CBankInfo::minGuards() const
 
 IObjectInfo::CArmyStructure CBankInfo::maxGuards() const
 {
+    assert(false);
 	std::vector<IObjectInfo::CArmyStructure> armies;
 	for (auto configEntry : config)
 	{

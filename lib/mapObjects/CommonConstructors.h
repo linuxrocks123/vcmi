@@ -152,11 +152,13 @@ struct BankConfig
 	}
 };
 
-class CBankInfo : public IObjectInfo
+class DLL_LINKAGE CBankInfo : public IObjectInfo
 {
 	JsonVector config;
 public:
 	CBankInfo(JsonVector config);
+
+    float expectedCombatValue() const;
 
 	CArmyStructure minGuards() const;
 	CArmyStructure maxGuards() const;

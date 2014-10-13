@@ -172,6 +172,7 @@ public:
 	void tryRealize(Goals::DigAtTile & g);
 	void tryRealize(Goals::CollectRes & g);
 	void tryRealize(Goals::Build & g);
+	void tryRealize(Goals::DefendTown & g);
 	void tryRealize(Goals::Invalid & g);
 	void tryRealize(Goals::AbstractGoal & g);
 
@@ -270,7 +271,7 @@ public:
 	bool goVisitObj(const CGObjectInstance * obj, HeroPtr h);
 	void performObjectInteraction(const CGObjectInstance * obj, HeroPtr h);
 
-	bool moveHeroToTile(int3 dst, HeroPtr h);
+	bool moveHeroToTile(int3 dst, HeroPtr h, bool objIsDefense = false);
 
 	void lostHero(HeroPtr h); //should remove all references to hero (assigned tasks and so on)
 	void waitTillFree();
@@ -291,7 +292,8 @@ public:
 	void retreiveVisitableObjs(std::vector<const CGObjectInstance *> &out, bool includeOwned = false) const;
 	void retreiveVisitableObjs(std::set<const CGObjectInstance *> &out, bool includeOwned = false) const;
 	std::vector<const CGObjectInstance *> getFlaggedObjects() const;
-
+    int get_gold_reserve() { return gold_reserve; };
+    void reset_gold_reserve() { gold_reserve = 0; logAi->debugStream() << "Reset gold reserve to 0!"; };
 	const CGObjectInstance *lookForArt(int aid) const;
 	bool isAccessible(const int3 &pos);
 	HeroPtr getHeroWithGrail() const;
@@ -325,6 +327,7 @@ public:
 		h.template registerType<Goals::AbstractGoal, Goals::ClearWayTo>();
 		h.template registerType<Goals::AbstractGoal, Goals::CollectRes>();
 		h.template registerType<Goals::AbstractGoal, Goals::Conquer>();
+		h.template registerType<Goals::AbstractGoal, Goals::DefendTown>();
 		h.template registerType<Goals::AbstractGoal, Goals::DigAtTile>();
 		h.template registerType<Goals::AbstractGoal, Goals::Explore>();
 		h.template registerType<Goals::AbstractGoal, Goals::FindObj>();
@@ -349,6 +352,9 @@ public:
 
 		//myCB is restored after load by init call
 	}
+
+private:
+        int gold_reserve = 0;
 };
 
 class cannotFulfillGoalException : public std::exception

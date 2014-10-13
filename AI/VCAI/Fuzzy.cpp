@@ -202,6 +202,10 @@ ui64 FuzzyHelper::estimateBankDanger (const CBank * bank)
 {
 	auto info = VLC->objtypeh->getHandlerFor(bank->ID, bank->subID)->getObjectInfo(bank->appearance);
 
+    return static_cast<ui64>(static_cast<CBankInfo*>(info.get())->expectedCombatValue());
+    
+//All of this appears to be expecting a significantly different (outdated?) JSON structure.
+#if 0
 	ui64 val = std::numeric_limits<ui64>::max();
 	try
 	{
@@ -224,7 +228,7 @@ ui64 FuzzyHelper::estimateBankDanger (const CBank * bank)
         logAi->errorStream() << "estimateBankDanger " << fe.name() << ": " << fe.message();
 	}
 	return val;
-
+#endif
 }
 
 float FuzzyHelper::getTacticalAdvantage (const CArmedInstance *we, const CArmedInstance *enemy)
@@ -455,7 +459,7 @@ float FuzzyHelper::evaluate (Goals::GatherArmy & g)
 	//the more army we need, the more important goal
 	//the more army we lack, the less important goal
 	float army = g.hero->getArmyStrength();
-	return g.value / std::max(g.value - army, 1000.0f);
+	return g.value / std::max(g.value - army, 1.0f);
 }
 
 float FuzzyHelper::evaluate (Goals::ClearWayTo & g)
