@@ -242,7 +242,7 @@ TSubgoal Win::whatToDoToAchieve()
 #endif
                 CPathsInfo out(cb->getMapSize());
                 CGPath path;
-                cb->calculatePaths(hero,out);
+                cb->calculatePaths(hero,out,ai->playerID);
                 out.getPath(town->visitablePos(),path);
                 if(path.nodes.size() && path.nodes[0].turns<2)
                 {

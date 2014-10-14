@@ -1329,7 +1329,7 @@ void CGameHandler::newTurn()
 		{
 			n.res[player] = n.res[player] + t->dailyIncome();
 		}
-		if(t->hasBuilt(BuildingID::GRAIL, ETownType::TOWER))
+		if(t->hasBuilt(BuildingID::GRAIL, ETownType::TOWER) /*|| (player != PlayerColor::NEUTRAL && !gs->getPlayer(player)->human)*/)
 		{
 			// Skyship, probably easier to handle same as Veil of darkness
 			//do it every new day after veils apply

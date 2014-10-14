@@ -2165,10 +2165,10 @@ void CGameState::apply(CPack *pack)
 	applierGs->apps[typ]->applyOnGS(this,pack);
 }
 
-void CGameState::calculatePaths(const CGHeroInstance *hero, CPathsInfo &out)
+void CGameState::calculatePaths(const CGHeroInstance *hero, CPathsInfo &out, PlayerColor player)
 {
-	CPathfinder pathfinder(out, this, hero);
-	pathfinder.calculatePaths();
+    CPathfinder pathfinder(out, this, hero, player);
+    pathfinder.calculatePaths();
 }
 
 /**
@@ -3529,11 +3529,12 @@ bool CPathfinder::goodForLandSeaTransition()
 	return true;
 }
 
-CPathfinder::CPathfinder(CPathsInfo &_out, CGameState *_gs, const CGHeroInstance *_hero) : CGameInfoCallback(_gs, boost::optional<PlayerColor>()), out(_out), hero(_hero), FoW(getPlayerTeam(hero->tempOwner)->fogOfWarMap)
+CPathfinder::CPathfinder(CPathsInfo &_out, CGameState *_gs, const CGHeroInstance *_hero, PlayerColor player) : CGameInfoCallback(_gs, boost::optional<PlayerColor>()), out(_out), hero(_hero), FoW(getPlayerTeam(player == PlayerColor::NEUTRAL ? hero->tempOwner : player)->fogOfWarMap)
 {
 	useSubterraneanGates = true;
 	allowEmbarkAndDisembark = true;
 }
+    
 
 CRandomGenerator & CGameState::getRandomGenerator()
 {

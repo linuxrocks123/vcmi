@@ -304,7 +304,7 @@ private:
 	bool canMoveBetween(const int3 &a, const int3 &b) const; //checks only for visitable objects that may make moving between tiles impossible, not other conditions (like tiles itself accessibility)
 
 public:
-	CPathfinder(CPathsInfo &_out, CGameState *_gs, const CGHeroInstance *_hero);
+	CPathfinder(CPathsInfo &_out, CGameState *_gs, const CGHeroInstance *_hero, PlayerColor player = PlayerColor::NEUTRAL);
 	void calculatePaths(); //calculates possible paths for hero, uses current hero position and movement left; returns pointer to newly allocated CPath or nullptr if path does not exists
 };
 
@@ -353,7 +353,7 @@ public:
 	UpgradeInfo getUpgradeInfo(const CStackInstance &stack);
 	PlayerRelations::PlayerRelations getPlayerRelations(PlayerColor color1, PlayerColor color2);
 	bool checkForVisitableDir(const int3 & src, const int3 & dst) const; //check if src tile is visitable from dst tile
-	void calculatePaths(const CGHeroInstance *hero, CPathsInfo &out); //calculates possible paths for hero, by default uses current hero position and movement left; returns pointer to newly allocated CPath or nullptr if path does not exists
+    void calculatePaths(const CGHeroInstance* hero, CPathsInfo& out, PlayerColor player = PlayerColor::NEUTRAL); //calculates possible paths for hero, by default uses current hero position and movement left; returns pointer to newly allocated CPath or nullptr if path does not exists
 	int3 guardingCreaturePosition (int3 pos) const;
 	std::vector<CGObjectInstance*> guardingCreatures (int3 pos) const;
 

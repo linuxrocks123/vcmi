@@ -699,7 +699,9 @@ void VCAI::makeTurnInternal()
     else if(gold_reserve > 0)
         gold_reserve-=std::min(1000,gold_reserve);
 
-    logAi->debugStream() << "Gold reserve in makeTurnInternal: " << gold_reserve;
+    std::cout << "Gold reserve in makeTurnInternal: " << gold_reserve << std::endl;
+
+    std::cout << "Free resources in makeTurnInternal: " << freeResources() << std::endl;
 
     Goals::defended_towns.clear();
 
@@ -1182,10 +1184,26 @@ void VCAI::buildStructure(const CGTownInstance * t)
 	if (tryBuildAnyStructure(t, std::vector<BuildingID>(essential, essential + ARRAY_COUNT(essential))))
 		return;
 
+    bool have_capitol = false;
+    for(const CGTownInstance* t : cb->getTownsInfo())
+        if(t->hasCapitol())
+        {
+            have_capitol = true;
+            break;
+        }
+
+
 	//we're running out of gold - try to build something gold-producing. Multiplier can be tweaked, 6 is minimum due to buildings costs
 	if (currentRes[Res::GOLD] < townIncome * 6)
-		if (tryBuildNextStructure(t, std::vector<BuildingID>(goldSource, goldSource + ARRAY_COUNT(goldSource))))
-			return;
+    {
+		bool success = tryBuildNextStructure(t, std::vector<BuildingID>(goldSource, goldSource + ARRAY_COUNT(goldSource)));
+		if(success)
+            return;
+
+        //Return anyway unless we've built as much $$$ as we can - NEED TO SAVE
+        if(!have_capitol && !t->hasCapitol() || have_capitol && !t->hasBuilt(BuildingID::CITY_HALL))
+            return;
+    }
 
 	if (cb->getDate(Date::DAY_OF_WEEK) > 6)// last 2 days of week - try to focus on growth
 	{
@@ -1193,10 +1211,47 @@ void VCAI::buildStructure(const CGTownInstance * t)
 			return;
 	}
 
+    // We want upgrades non-shooters to shooters and non-double-attack to double attack as quickly as possible
+    for(int i=0; i<t->town->creatures.size(); i++)
+        if(t->hasBuilt(unitsSource[i]) && !t->hasBuilt(unitsUpgrade[i]))
+        {
+            auto creatures = t->town->creatures[i];
+            if(!creatures[0].toCreature()->isShooting() && creatures[1].toCreature()->isShooting())
+                if(tryBuildStructure(t,unitsUpgrade[i]))
+                    return;
+
+            if(!creatures[0].toCreature()->hasBonusOfType(Bonus::ADDITIONAL_ATTACK) && creatures[1].toCreature()->hasBonusOfType(Bonus::ADDITIONAL_ATTACK))
+                if(tryBuildStructure(t,unitsUpgrade[i]))
+                    return;
+        }
+    
+
 	// first in-game week or second half of any week: try build dwellings
 	if (cb->getDate(Date::DAY) < 7 || cb->getDate(Date::DAY_OF_WEEK) > 3)
 		if (tryBuildAnyStructure(t, std::vector<BuildingID>(unitsSource, unitsSource + ARRAY_COUNT(unitsSource)), 8 - cb->getDate(Date::DAY_OF_WEEK)))
 			return;
+
+    //Couldn't build any dwellings?  Okay, go for horde buildings, citadel, castle, etc.
+    if (tryBuildNextStructure(t, std::vector<BuildingID>(unitGrowth, unitGrowth + ARRAY_COUNT(unitGrowth)), 2))
+        return;
+    
+    //Couldn't do that?  Gold.
+	if (tryBuildNextStructure(t, std::vector<BuildingID>(goldSource, goldSource + ARRAY_COUNT(goldSource))))
+		return;
+
+    //Okay, we MIGHT do less important things now, but first, check if there are any unbuilt creature dwellings, unbuilt gold sources, etc.
+    //If there are, just return -- we need to save to build more important things before we focus on frivolity
+
+    //Save up if we don't have creature dwellings built.
+    for(int i=0; i<ARRAY_COUNT(unitsSource); i++)
+        if(!t->hasBuilt(unitsSource[i]))
+            return;
+
+    //Save up if we don't have gold sources built
+    if(!have_capitol && !t->hasCapitol() || have_capitol && !t->hasBuilt(BuildingID::CITY_HALL))
+        return;
+
+    //Below here not terribly important
 
 	//try to upgrade dwelling
 	for(int i = 0; i < ARRAY_COUNT(unitsUpgrade); i++)
@@ -1862,7 +1917,7 @@ void VCAI::tryRealize(Goals::DefendTown & g)
 #endif
             CPathsInfo out(cb->getMapSize());
             CGPath path;
-            cb->calculatePaths(hero,out);
+            cb->calculatePaths(hero,out,playerID);
             out.getPath(g.town->visitablePos(),path);
             if(path.nodes.size() && path.nodes[0].turns<2)
 #if 0
@@ -1893,7 +1948,7 @@ void VCAI::tryRealize(Goals::DefendTown & g)
         {
             CPathsInfo out(cb->getMapSize());
             CGPath path;
-            cb->calculatePaths(hero,out);
+            cb->calculatePaths(hero,out,playerID);
             out.getPath(g.town->visitablePos(),path);
             if(path.nodes.size() && !path.nodes[0].turns && !path.nodes[0].accessible!=CGPathNode::EAccessibility::BLOCKED && (!strongest || hero->getArmyStrength() > strongest->getArmyStrength()))
                 strongest = hero;
@@ -1940,6 +1995,9 @@ void VCAI::tryRealize(Goals::CollectRes & g)
 	{
 		if(const IMarket *m = IMarket::castFrom(obj, false))
 		{
+#if 0
+            //This loop is EXTREMELY wasteful.  It trades ALL resources of
+            //at least one type at the market!
 			for (Res::ERes i = Res::WOOD; i <= Res::GOLD; vstd::advance(i, 1))
 			{
 				if(i == g.resID) continue;
@@ -1951,8 +2009,55 @@ void VCAI::tryRealize(Goals::CollectRes & g)
 				if(cb->getResourceAmount(static_cast<Res::ERes>(g.resID)) >= g.value)
 					return;
 			} 
+#endif
 
-			throw cannotFulfillGoalException("I cannot get needed resources by trade!");
+            //New implementation: trade only up to 10% of each resource,
+            //starting with the "least important" resource.  Check if we will have
+            //enough resources afterwards before doing the trade.
+            Res::ERes needed_res = static_cast<Res::ERes>(g.resID);
+            auto amount_needed = g.value - cb->getResourceAmount(needed_res);
+
+            std::map<int,Res::ERes> resources; //DO NOT REPLACE WITH unordered_map
+            for(Res::ERes i = Res::WOOD; i<= Res::GOLD; vstd::advance(i,1))
+            {
+                if(i==needed_res)
+                    continue;
+
+                int normalized_amount = cb->getResourceAmount(i);
+                switch(i)
+                {
+                case Res::GOLD:
+                    normalized_amount/=1000;
+                    break;
+                case Res::WOOD:
+                case Res::ORE:
+                    normalized_amount/=2;
+                default: ;
+                    //nothing to do
+                }
+
+                resources.insert(std::make_pair(normalized_amount,i));
+            }
+
+            //Test to see if we can do it
+            auto amount_still_needed = amount_needed;
+            std::map<int,Res::ERes> trade_directions;
+            for(auto i = resources.rbegin(); amount_still_needed && i!=resources.rend(); i++)
+            {
+                int tenpercent = cb->getResourceAmount(i->second)/10;
+                int toGive, toGet;
+                m->getOffer(i->second,needed_res,toGive,toGet,EMarketMode::RESOURCE_RESOURCE);
+                int give_amount = std::min(amount_still_needed*toGive,toGive*(tenpercent/toGive));
+                trade_directions.insert(std::make_pair(toGive,i->second));
+                amount_still_needed-=give_amount/toGive;
+            }
+
+            if(amount_still_needed)
+                throw cannotFulfillGoalException("I cannot get needed resources by trade!");
+
+            //If we're still here ... do the trade.
+            for(auto i : trade_directions)
+                cb->trade(obj,EMarketMode::RESOURCE_RESOURCE, i.second, needed_res, i.first);
 		}
 		else
 		{

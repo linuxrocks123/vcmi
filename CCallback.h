@@ -108,7 +108,7 @@ public:
 	virtual int3 getGuardingCreaturePosition(int3 tile);
 	virtual const CPathsInfo * getPathsInfo(const CGHeroInstance *h);
 
-	virtual void calculatePaths(const CGHeroInstance *hero, CPathsInfo &out);
+	virtual void calculatePaths(const CGHeroInstance *hero, CPathsInfo &out, PlayerColor player = PlayerColor::NEUTRAL);
 
 	//Set of metrhods that allows adding more interfaces for this player that'll receive game event call-ins.
 	void registerGameInterface(shared_ptr<IGameEventsReceiver> gameEvents);
