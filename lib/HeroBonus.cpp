@@ -83,7 +83,7 @@ const std::map<std::string, TPropagatorPtr> bonusPropagatorMap =
 #define BONUS_LOG_LINE(x) logBonus->traceStream() << x
 
 int CBonusSystemNode::treeChanged = 1;
-const bool CBonusSystemNode::cachingEnabled = true;
+const bool CBonusSystemNode::cachingEnabled = false;
 
 BonusList::BonusList(bool BelongsToTree /* =false */) : belongsToTree(BelongsToTree)
 {

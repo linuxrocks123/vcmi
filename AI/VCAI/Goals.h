@@ -369,8 +369,8 @@ class CIssueCommand : public CGoal<CIssueCommand>
 	//TSubgoal whatToDoToAchieve() override {return sptr(Invalid());};
 };
 
-#include <unordered_set>
+#include <unordered_map>
 
-extern std::unordered_set<const CGTownInstance*> defended_towns;
+extern std::unordered_map<const CGTownInstance*,ui64> defended_towns;
 
 }

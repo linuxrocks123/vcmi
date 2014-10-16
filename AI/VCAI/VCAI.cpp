@@ -1205,7 +1205,7 @@ void VCAI::buildStructure(const CGTownInstance * t)
             return;
     }
 
-	if (cb->getDate(Date::DAY_OF_WEEK) > 6)// last 2 days of week - try to focus on growth
+	if (cb->getDate(Date::DAY_OF_WEEK) >= 6)// last 2 days of week - try to focus on growth
 	{
 		if (tryBuildNextStructure(t, std::vector<BuildingID>(unitGrowth, unitGrowth + ARRAY_COUNT(unitGrowth)), 2))
 			return;
@@ -1730,8 +1730,9 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h, bool objIsDefense)
     //If we're not defending a town, don't let anyone move from it
     if(!objIsDefense)
         for(auto t : Goals::defended_towns)
-            if(h->visitablePos() == t->visitablePos())
-                throw cannotFulfillGoalException("Defending town; can't move from it!");
+            if(h->visitablePos() == t.first->visitablePos())
+                if(t.first->garrisonHero==h.get() || t.second > t.first->getUpperArmy()->getArmyStrength())
+                    throw cannotFulfillGoalException("Defending town; can't move from it!");
 
     //If we're garrisoned, move us out of the garrison
     if(h->inTownGarrison)
@@ -1926,6 +1927,8 @@ void VCAI::tryRealize(Goals::DefendTown & g)
                 enemyStrength+=hero->getArmyStrength();
         }
 
+    Goals::defended_towns[g.town]=enemyStrength;
+
     ui64 strength = g.town->getUpperArmy()->getArmyStrength();
     if(strength > enemyStrength)
     {
@@ -1956,7 +1959,7 @@ void VCAI::tryRealize(Goals::DefendTown & g)
 
         //No hero can visit us?  How sad.
         if(!strongest)
-            return;
+            break;
 
         setGoal(strongest,sptr(g));
         moveHeroToTile(g.town->visitablePos(),HeroPtr(strongest));
@@ -1966,9 +1969,13 @@ void VCAI::tryRealize(Goals::DefendTown & g)
             cb->swapGarrisonHero(g.town);
 
         //Better hero is in town.  Now, if we have two heroes, give the better one the troops.
-        if(g.town->visitingHero)
+        if(g.town->visitingHero && g.town->garrisonHero)
             pickBestCreatures(g.town->getUpperArmy(),g.town->visitingHero);
     }
+
+    //give hero best creatures since hero will be in garrison during fight
+    if(g.town->visitingHero && !g.town->garrisonHero)
+         pickBestCreatures(g.town->visitingHero,g.town->getUpperArmy());
 }
 
 void VCAI::tryRealize(Goals::DigAtTile & g)
@@ -2073,8 +2080,13 @@ void VCAI::tryRealize(Goals::CollectRes & g)
 
 void VCAI::tryRealize(Goals::Build & g)
 {
-	for(const CGTownInstance *t : cb->getTownsInfo())
+    bool direction = cb->getDate(Date::DAY_OF_WEEK)%2;
+    auto towns = cb->getTownsInfo();
+    
+    //Loop runs forwards on MWFSu, backwards on TThSa, so later conquered towns don't get underdeveloped
+	for(int i = (direction ? (0) : (towns.size()-1)); (direction ? (i < towns.size()) : (i >= 0)); i+=(direction ? 1 : -1))
 	{
+        const CGTownInstance* t = towns[i];
 		logAi->debugStream() << boost::format("Looking into %s") % t->name;
 		buildStructure(t);
 		buildArmyIn(t);

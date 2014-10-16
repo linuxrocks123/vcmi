@@ -187,7 +187,7 @@ namespace Goals
 //		  return sptr (Goals::Explore());
 //}
 
-std::unordered_set<const CGTownInstance*> Goals::defended_towns;
+std::unordered_map<const CGTownInstance*,ui64> Goals::defended_towns;
 
 TSubgoal Win::whatToDoToAchieve()
 {
@@ -248,7 +248,7 @@ TSubgoal Win::whatToDoToAchieve()
                 {
                     std::cout << "DEFENDING TOWN\n";
                     ai->reset_gold_reserve();
-                    defended_towns.insert(town);
+                    defended_towns.insert(std::make_pair(town,0));
                     return sptr(Goals::DefendTown(town));
                 }
             }
