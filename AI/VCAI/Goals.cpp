@@ -792,20 +792,14 @@ TGoalVec VisitTile::getAllPossibleSubgoals()
 
 		for (auto h : heroes)
 		{
-			if (ai->isAccessibleForHero(tile, h))
+			if (ai->isAccessibleForHero(tile, h) && h->visitablePos()!=tile)
 				ret.push_back (sptr(Goals::VisitTile(tile).sethero(h)));
 		}
 		if (ai->canRecruitAnyHero())
 			ret.push_back (sptr(Goals::RecruitHero()));
 	}
 	if (ret.empty())
-	{
-		auto obj = frontOrNull(cb->getVisitableObjs(tile));
-		if (obj && obj->ID == Obj::HERO && obj->tempOwner == ai->playerID) //our own hero stands on that tile
-			ret.push_back (sptr(Goals::VisitTile(tile).sethero(dynamic_cast<const CGHeroInstance *>(obj)).setisElementar(true)));
-		else
-			ret.push_back (sptr(Goals::ClearWayTo(tile)));
-	}
+        ret.push_back (sptr(Goals::ClearWayTo(tile)));
 
 	//important - at least one sub-goal must handle case which is impossible to fulfill (unreachable tile)
 	return ret;
