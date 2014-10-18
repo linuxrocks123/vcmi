@@ -3526,6 +3526,11 @@ bool CPathfinder::goodForLandSeaTransition()
 		}
 	}
 
+    //This will need to be changed to deal with water walk, fly
+    if(!cp->land && !dp->land) //if we're moving on the water, make sure we're on a boat (m***f*** don't you EVER FORGET!)
+        if(ct->topVisitableId()!=Obj::BOAT && destTopVisObjID!=Obj::BOAT)
+            return false;
+
 	return true;
 }
 
