@@ -713,7 +713,7 @@ void VCAI::makeTurnInternal()
 	}
 
     //Unreserve defending heroes.
-    completeGoal(sptr(Goals::AbstractGoal(Goals::EGoals::DEFEND_TOWN)));
+    completeGoal(sptr(Goals::DefendTown()));
 
 	try
 	{
